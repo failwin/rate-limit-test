@@ -3,20 +3,26 @@ import {
   Inject,
   CanActivate,
   ExecutionContext,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { RateLimitOptions } from './rate-limit.options';
+import { RateLimitOptions, RateLimitStore } from './rate-limit.iterfaces';
 import {
   RATE_LIMIT_OPTIONS,
+  RATE_LIMIT_STORE,
   RATE_LIMIT_DECORATOR,
   RATE_LIMIT_DECORATOR_LIMIT,
   RATE_LIMIT_DECORATOR_TIME_SLOT,
+  DEFAULT_LIMIT,
+  DEFAULT_TIME_SLOT,
 } from './rate-limit.constants';
 
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   constructor(
     @Inject(RATE_LIMIT_OPTIONS) protected options: RateLimitOptions,
+    @Inject(RATE_LIMIT_STORE) protected store: RateLimitStore,
     protected readonly reflector: Reflector,
   ) {}
 
@@ -42,8 +48,9 @@ export class RateLimitGuard implements CanActivate {
       [handler, classRef],
     );
 
-    const limit = routeOrClassLimit || this.options.limit;
-    const timeSlot = routeOrClassTimeSlot || this.options.timeSlot;
+    const limit = routeOrClassLimit || this.options.limit || DEFAULT_LIMIT;
+    const timeSlot =
+      routeOrClassTimeSlot || this.options.timeSlot || DEFAULT_TIME_SLOT;
     return this.handleRequest(context, limit, timeSlot);
   }
 
@@ -52,7 +59,33 @@ export class RateLimitGuard implements CanActivate {
     limit: number,
     timeSlot: number,
   ): Promise<boolean> {
-    console.log('canActivate');
+    const res = context.switchToHttp().getResponse();
+
+    const key = this.extractKey(context);
+    const { total, resetTime } = await this.store.getItem(key);
+
+    if (total >= limit) {
+      res.header('Retry-After', resetTime);
+      this.throwException(context);
+    }
+
+    res.header(`X-RateLimit-Limit`, limit);
+    res.header(`X-RateLimit-Remaining`, Math.max(0, limit - (total + 1)));
+    res.header(`X-RateLimit-Reset`, resetTime);
+
+    await this.store.addItem(key, timeSlot);
     return true;
+  }
+
+  protected extractKey(context) {
+    const req = context.switchToHttp().getRequest();
+    const contextName = context.getClass().name;
+    const handlerName = context.getHandler().name;
+    const ip = req.ips.length ? req.ips[0] : req.ip;
+    return `${contextName}-${handlerName}-${ip}`;
+  }
+
+  protected throwException(context) {
+    throw new HttpException('Too Many Requests', HttpStatus.TOO_MANY_REQUESTS);
   }
 }
