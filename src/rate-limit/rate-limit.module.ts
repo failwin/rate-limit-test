@@ -1,6 +1,9 @@
-import { Module, DynamicModule } from '@nestjs/common';
+import { Module, DynamicModule, Provider } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { RateLimitOptions } from './rate-limit.iterfaces';
+import {
+  RateLimitOptions,
+  RateLimitOptionsAsync,
+} from './rate-limit.iterfaces';
 import { RateLimitGuard } from './rate-limit.guard';
 import { RateLimitStoreService } from './rate-limit.service';
 import { RATE_LIMIT_OPTIONS, RATE_LIMIT_STORE } from './rate-limit.constants';
@@ -11,11 +14,31 @@ export { RateLimit } from './rate-limit.decorators';
 @Module({})
 export class RateLimitModule {
   static forRoot(options: RateLimitOptions): DynamicModule {
-    const optionsProvider = {
-      provide: RATE_LIMIT_OPTIONS,
-      useValue: options,
-    };
+    const providers = this.getProviders(options);
+    const guardProvider = { provide: APP_GUARD, useClass: RateLimitGuard };
 
+    return {
+      module: RateLimitModule,
+      providers: [...providers, guardProvider],
+      exports: providers,
+    };
+  }
+
+  static forRootAsync(options: RateLimitOptionsAsync): DynamicModule {
+    const providers = this.getProviders(options);
+    const guardProvider = { provide: APP_GUARD, useClass: RateLimitGuard };
+
+    return {
+      module: RateLimitModule,
+      imports: options.imports || [],
+      providers: [...providers, guardProvider],
+      exports: providers,
+    };
+  }
+
+  private static getProviders(
+    options: RateLimitOptions | RateLimitOptionsAsync,
+  ): Provider[] {
     const storeProvider = {
       provide: RATE_LIMIT_STORE,
       useFactory: (options: RateLimitOptions) => {
@@ -24,12 +47,25 @@ export class RateLimitModule {
       inject: [RATE_LIMIT_OPTIONS],
     };
 
-    const guardProvider = { provide: APP_GUARD, useClass: RateLimitGuard };
+    let optionsProvider;
+    if (this.isAsyncOptions(options)) {
+      optionsProvider = {
+        provide: RATE_LIMIT_OPTIONS,
+        useFactory: options.useFactory,
+        inject: options.inject || [],
+      };
+    } else {
+      optionsProvider = {
+        provide: RATE_LIMIT_OPTIONS,
+        useValue: options,
+      };
+    }
+    return [optionsProvider, storeProvider];
+  }
 
-    return {
-      module: RateLimitModule,
-      providers: [optionsProvider, storeProvider, guardProvider],
-      exports: [optionsProvider],
-    };
+  private static isAsyncOptions(
+    obj: RateLimitOptionsAsync | any,
+  ): obj is RateLimitOptionsAsync {
+    return obj && typeof obj.useFactory !== 'undefined';
   }
 }

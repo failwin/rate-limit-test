@@ -1,3 +1,5 @@
+import { ModuleMetadata, Type } from '@nestjs/common/interfaces';
+
 export interface RateLimitStoreResponse {
   total: number;
   resetTime: number;
@@ -14,4 +16,9 @@ export interface RateLimitOptions {
   timeSlot?: number;
 
   store?: RateLimitStore;
+}
+
+export interface RateLimitOptionsAsync extends Pick<ModuleMetadata, 'imports'> {
+  useFactory?: (...args: any[]) => Promise<RateLimitOptions> | RateLimitOptions;
+  inject?: any[];
 }

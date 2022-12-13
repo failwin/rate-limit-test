@@ -2,8 +2,6 @@ import {
   RATE_LIMIT_DECORATOR,
   RATE_LIMIT_DECORATOR_LIMIT,
   RATE_LIMIT_DECORATOR_TIME_SLOT,
-  DEFAULT_LIMIT,
-  DEFAULT_TIME_SLOT,
 } from './rate-limit.constants';
 
 function setMetadata(target: any, limit: number, timeClot: number): void {
@@ -12,10 +10,11 @@ function setMetadata(target: any, limit: number, timeClot: number): void {
   Reflect.defineMetadata(RATE_LIMIT_DECORATOR_TIME_SLOT, timeClot, target);
 }
 
-export const RateLimit = (
-  limit = DEFAULT_LIMIT,
-  timeClot = DEFAULT_TIME_SLOT,
-): MethodDecorator & ClassDecorator => {
+export const RateLimit = (options?: {
+  limit?: number;
+  timeClot?: number;
+}): MethodDecorator & ClassDecorator => {
+  const { limit, timeClot } = options || {};
   return (
     target: any,
     propertyKey?: string | symbol,
