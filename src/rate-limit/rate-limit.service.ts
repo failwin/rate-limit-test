@@ -1,4 +1,9 @@
-import { Injectable, OnApplicationBootstrap, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+  Logger,
+} from '@nestjs/common';
 import { RateLimitStore, RateLimitStoreResponse } from './rate-limit.iterfaces';
 
 type StartTime = number;
@@ -14,7 +19,7 @@ interface RateLimitFindResponse {
 
 @Injectable()
 export class RateLimitStoreService
-  implements RateLimitStore, OnApplicationBootstrap
+  implements RateLimitStore, OnApplicationBootstrap, OnApplicationShutdown
 {
   private readonly logger = new Logger(RateLimitStoreService.name);
 
@@ -83,5 +88,9 @@ export class RateLimitStoreService
         );
       }
     }, timeSec * 1000);
+  }
+
+  onApplicationShutdown(): any {
+    this.timeoutIds.forEach(clearTimeout);
   }
 }
