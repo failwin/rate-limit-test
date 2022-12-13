@@ -22,5 +22,5 @@ $ npm install
 ```bash
 $ npm run start
 
-Make POST to http://localhost:3000/login
+$ curl  -X POST http://localhost:3000/login
 ```
